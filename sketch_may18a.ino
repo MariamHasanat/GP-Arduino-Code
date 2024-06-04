@@ -74,7 +74,7 @@ void processSensorData() {
      delay(0); // Adjust delay based on sampling rate
   }
 // Extract features
-  float sensor1Features[3] = {0}; // Features for sensor 1 [meanX, stdX, meanY, stdY, meanZ, stdZ]
+  float sensor1Features[3] = {0}; // Features for sensor 1 [stdX, stdY, stdZ]
 
   for (int axis = 0; axis < 3; axis++) {
     sensor1Features[axis] = stddev(sensor1Buffer[axis], NUM_SAMPLES);
