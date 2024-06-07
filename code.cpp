@@ -8,9 +8,7 @@
 #define SENSOR1_Z_PIN 35
 // Define the number of samples to collect
 #define NUM_SAMPLES 100
-
-
-
+#define NUM_OF_ITERATIONS 25
 //////////////////////////////////// Machine Learning CODE ////////////////////////////////////////////
 
 /////////  the defintion of of vars ////////
@@ -18,6 +16,7 @@ Parameters theta;
 DataPoint point;
 int NUM_OF_ONES = 0;
 float AVG_ALERT = 0;
+int num_of_iteration = 0;
 /////// END the defintion of of vars ///////
 
 
@@ -120,35 +119,34 @@ void setup() {
 void loop() {
 	// put your main code here, to run repeatedly:
     // Read data from sensor 1
-  
-	for (int i = 0; i < 25; i++) { //each 25 samples --- mean of them  >= 0.3 --- thats mean the threshold value of error is 0.3 --- less than this value or 0 value will consider as not earthquake .
-	  // gain samples 
-	  // calculate STD 
-	  // calulate NUM-OF-ONES
-	  sensor1Data[0] = analogRead(SENSOR1_X_PIN);
-	  sensor1Data[1] = analogRead(SENSOR1_Y_PIN);
-	  sensor1Data[2] = analogRead(SENSOR1_Z_PIN);
-
-	  // Process data (e.g., feature extraction)
-	  processSensorData();
-
-	  // calculate the threshold value to detect the earthquake
-	  // send an alert to the SERVER with 50% , since each node have the 50% of probability 
-	  // calculate mean value for 25 sample
-	  // summation(NUM_OF_ONES)/25
-	}
-	AVG_ALERT = (NUM_OF_ONES/25);
-
-	if(AVG_ALERT > 0.3){
-    //send alert
+	//each 25 samples --- mean of them  >= 0.3 --- thats mean the threshold value of error is 0.3 --- less than this value or 0 value will consider as not earthquake .
+	// gain samples 
+	// calculate STD 
+	// calulate NUM-OF-ONES
+	// calculate the threshold value to detect the earthquake
+	// Process data (e.g., feature extraction)
+	// send an alert to the SERVER with 50% , since each node have the 50% of probability 
+	// calculate mean value for 25 sample
+	// summation(NUM_OF_ONES)/25
+	if(num_of_iteration == NUM_OF_ITERATIONS){
+		num_of_iteration = 0;
+		AVG_ALERT = (NUM_OF_ONES/NUM_OF_ITERATIONS);
+		if(AVG_ALERT > 0.3){
+		//send alert
 		AVG_ALERT = 0;
-		NUM_OF_ONES = 0 ;
+		NUM_OF_ONES = 0;
 		Serial.println("ALERT ALERT ALERT");
-	}
-	else{
+		}
+		else{
 		AVG_ALERT = 0;
 		NUM_OF_ONES = 0 ;
 		Serial.println("Everythin is good ");
-	 }
+		}
+	}
+	num_of_iteration++;
+    sensor1Data[0] = analogRead(SENSOR1_X_PIN);
+    sensor1Data[1] = analogRead(SENSOR1_Y_PIN);
+    sensor1Data[2] = analogRead(SENSOR1_Z_PIN);
+	processSensorData();  
 }
 
