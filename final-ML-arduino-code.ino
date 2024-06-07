@@ -144,9 +144,9 @@ void loop() {
 		}
 	}
 	num_of_iteration++;
-    sensor1Data[0] = analogRead(SENSOR1_X_PIN);
-    sensor1Data[1] = analogRead(SENSOR1_Y_PIN);
-    sensor1Data[2] = analogRead(SENSOR1_Z_PIN);
+  sensor1Data[0] = analogRead(SENSOR1_X_PIN);
+  sensor1Data[1] = analogRead(SENSOR1_Y_PIN);
+  sensor1Data[2] = analogRead(SENSOR1_Z_PIN);
 	processSensorData();  
 }
 
