@@ -119,7 +119,7 @@ void setup() {
 void loop() {
 	// put your main code here, to run repeatedly:
     // Read data from sensor 1
-	//each 25 samples --- mean of them  >= 0.3 --- thats mean the threshold value of error is 0.3 --- less than this value or 0 value will consider as not earthquake .
+	// each 25 samples --- mean of them  >= 0.3 --- thats mean the threshold value of error is 0.3 --- less than this value or 0 value will consider as not earthquake .
 	// gain samples 
 	// calculate STD 
 	// calulate NUM-OF-ONES
