@@ -11,7 +11,7 @@ int FinalResult=0;
 int old_FinalResult =0;
 
 /* 1. Define the WiFi credentials */
-#define WIFI_SSID "^^^^^^^^^^^^^"
+#define WIFI_SSID "^^^^^^^^^^^^"
 #define WIFI_PASSWORD "$$$$$$$$"
 // For the following credentials, see examples/Authentications/SignInAsUser/EmailPassword/EmailPassword.ino
 
@@ -23,7 +23,7 @@ int old_FinalResult =0;
 #define FIREBASE_PROJECT_ID "app2-d200f" //<databaseName>.firebaseio.com or <databaseName>.<region>.firebasedatabase.app
 
 /* 4. Define the user Email and password that already registered or added in your project */
-#define USER_EMAIL "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+#define USER_EMAIL "!!!!!!!!!!!!!!!!!!!"
 #define USER_PASSWORD "################"
 
 // Define Firebase Data object
