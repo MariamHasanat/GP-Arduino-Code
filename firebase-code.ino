@@ -139,14 +139,10 @@ void loop() {
   sensor1Data[1] = analogRead(SENSOR1_Y_PIN);
   sensor1Data[2] = analogRead(SENSOR1_Z_PIN);
   processSensorData();
-  HTTPClient http;
-  http.begin("https://app2-d200f.firebaseapp.com/api/v1/node_2/13");
-  http.addHeader("Content-Type", "application/json");
-  StaticJsonDocument<128> accelerationDocument;
+
 
   if (num_of_iteration == NUM_OF_ITERATIONS) {
     num_of_iteration = 0;
-
     AVG_ALERT = (NUM_OF_ONES / NUM_OF_ITERATIONS);
     if (AVG_ALERT > 0.3) {
       FinalResult = 1;
@@ -168,14 +164,22 @@ void loop() {
       NUM_OF_ONES = 0;
       Serial.println("Everythin is good ");
     }
-    // Prepare your document data
-    accelerationDocument["xAxis"] = sensor1Features[0];
-    accelerationDocument["yAxis"] = sensor1Features[1];
-    accelerationDocument["zAxis"] = sensor1Features[2];
-    char buffer[20];
-    serializeJson(accelerationDocument, buffer);
-    http.PATCH(buffer);
-    http.end();
-    delay(500);
+    if (WiFi.status() == WL_CONNECTED) {
+      HTTPClient http;
+      http.begin("https://firestore.googleapis.com/v1/projects/app2-d200f/databases/(default)/documents/node_2/2?key=AIzaSyBgpUQqMd8SQj7ZsB33GVh8WJcD0jlD0pk");
+      http.addHeader("Content-Type", "application/json");
+
+      StaticJsonDocument<20> accelerationDocument;
+
+      // Prepare your document data
+      accelerationDocument["xAxis"] = sensor1Features[0];
+      accelerationDocument["yAxis"] = sensor1Features[1];
+      accelerationDocument["zAxis"] = sensor1Features[2];
+      char buffer[20];
+      serializeJson(accelerationDocument, buffer);
+      http.PUT(buffer);
+      http.end();
+      delay(500);
+    }
   }
 }
