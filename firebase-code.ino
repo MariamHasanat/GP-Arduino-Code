@@ -15,26 +15,24 @@
 #define WIFI_SSID "Ross"
 #define WIFI_PASSWORD "dm3j9f@35"
 #define API_KEY "AIzaSyBgpUQqMd8SQj7ZsB33GVh8WJcD0jlD0pk"
-#define DATABASE_URL "https://app2-d200f-default-rtdb.firebaseio.com/" //<databaseName>.firebaseio.com or <databaseName>.<region>.firebasedatabase.app
-#define FIREBASE_PROJECT_ID "app2-d200f"                               //<databaseName>.firebaseio.com or <databaseName>.<region>.firebasedatabase.app
+#define DATABASE_URL "https://app2-d200f-default-rtdb.firebaseio.com/"  //<databaseName>.firebaseio.com or <databaseName>.<region>.firebasedatabase.app
+#define FIREBASE_PROJECT_ID "app2-d200f"                                //<databaseName>.firebaseio.com or <databaseName>.<region>.firebasedatabase.app
 #define USER_EMAIL "earhtquakegraduationproject@gmail.com"
 #define USER_PASSWORD "earthquake123@456"
 
 const int capacity = JSON_OBJECT_SIZE(3);
 
-struct DataPoint
-{
+struct DataPoint {
   double x;
   double y;
   double z;
-  int label; // 1 for earthquake, 0 for non-earthquake
+  int label;  // 1 for earthquake, 0 for non-earthquake
 };
-struct Parameters
-{                        //,,,
-  double w0 = -2.25237;  // Bias term
-  double w1 = 0.334201;  // Coefficient for x
-  double w2 = 0.0475398; // Coefficient for y
-  double w3 = 0.319727;  // Coefficient for z
+struct Parameters {       //,,,
+  double w0 = -2.25237;   // Bias term
+  double w1 = 0.334201;   // Coefficient for x
+  double w2 = 0.0475398;  // Coefficient for y
+  double w3 = 0.319727;   // Coefficient for z
 };
 
 unsigned long sendDataPrevMillis = 0;
@@ -51,72 +49,57 @@ FirebaseAuth auth;
 FirebaseConfig config;
 // FirebaseFirestore firestore;
 float AVG_ALERT = 0;
-float sensor1Data[3];                // [X, Y, Z]
-float sensor1Buffer[3][NUM_SAMPLES]; // [X, Y, Z]
-float sensor1Features[3] = {0};      // Features for sensor 1 [stdX,  stdY, stdZ]
-HTTPClient http;
-http.begin("https://app2-d200f.firebaseapp.com/api/v1/node_2/13");
-http.addHeader("Content-Type", "application/json");
-StaticJsonDocument<128> accelerationDocument;
-
+float sensor1Data[3];                 // [X, Y, Z]
+float sensor1Buffer[3][NUM_SAMPLES];  // [X, Y, Z]
+float sensor1Features[3] = { 0 };     // Features for sensor 1 [stdX,  stdY, stdZ]
+DynamicJsonDocument doc(capacity);
+JsonObject docData = doc.to<JsonObject>();
 // Sigmoid function
-double sigmoid(double z)
-{
+double sigmoid(double z) {
   return 1.0 / (1.0 + exp(-z));
 }
 // Hypothesis function
-double hypothesis(const Parameters &theta, double x, double y, double z)
-{
+double hypothesis(const Parameters &theta, double x, double y, double z) {
   return sigmoid(theta.w0 + (theta.w1 * x) + (theta.w2 * y) + (theta.w3 * z));
 }
 // Function to predict labels
-int predictLabel(const Parameters &theta, double x, double y, double z)
-{
+int predictLabel(const Parameters &theta, double x, double y, double z) {
   double prediction = hypothesis(theta, x, y, z);
   return (prediction >= 0.5) ? 1 : 0;
 }
-float mean(float *data, int size)
-{
+float mean(float *data, int size) {
   float sum = 0;
-  for (int i = 0; i < size; i++)
-  {
+  for (int i = 0; i < size; i++) {
     sum += data[i];
   }
   return sum / size;
 }
-float stddev(float *data, int size)
-{
+float stddev(float *data, int size) {
   float avg = mean(data, size);
   float sum = 0;
-  for (int i = 0; i < size; i++)
-  {
+  for (int i = 0; i < size; i++) {
     sum += pow(data[i] - avg, 2);
   }
   return sqrt(sum / size);
 }
 
-void processSensorData()
-{
+void processSensorData() {
   // Collect samples
-  for (int i = 0; i < NUM_SAMPLES; i++)
-  {
+  for (int i = 0; i < NUM_SAMPLES; i++) {
     sensor1Buffer[0][i] = analogRead(SENSOR1_X_PIN);
     sensor1Buffer[1][i] = analogRead(SENSOR1_Y_PIN);
     sensor1Buffer[2][i] = analogRead(SENSOR1_Z_PIN);
-    delay(0); // Adjust delay based on sampling rate
+    delay(0);  // Adjust delay based on sampling rate
   }
 
-  for (int axis = 0; axis < 3; axis++)
-  {
-    sensor1Features[axis] = stddev(sensor1Buffer[axis], NUM_SAMPLES); // here I fill the array of three values of STD
+  for (int axis = 0; axis < 3; axis++) {
+    sensor1Features[axis] = stddev(sensor1Buffer[axis], NUM_SAMPLES);  // here I fill the array of three values of STD
   }
-  predictedLabel = predictLabel(theta, sensor1Features[0], sensor1Features[1], sensor1Features[2]); //
-  if (predictedLabel == 1)
-  {
+  predictedLabel = predictLabel(theta, sensor1Features[0], sensor1Features[1], sensor1Features[2]);  //
+  if (predictedLabel == 1) {
     NUM_OF_ONES += 1;
   }
-  for (int i = 0; i < 3; i++)
-  {
+  for (int i = 0; i < 3; i++) {
     Serial.print(sensor1Features[i]);
     Serial.print(" ");
   }
@@ -125,13 +108,11 @@ void processSensorData()
   Serial.println();
 }
 
-void setup()
-{
+void setup() {
   Serial.begin(9600);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting to Wi-Fi");
-  while (WiFi.status() != WL_CONNECTED)
-  {
+  while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
     delay(300);
   }
@@ -143,55 +124,43 @@ void setup()
   config.api_key = API_KEY;
   auth.user.email = USER_EMAIL;
   auth.user.password = USER_PASSWORD;
-  config.database_url = DATABASE_URL;                 /* Assign the callback function for the long running token generation task */
-  config.token_status_callback = tokenStatusCallback; // see addons/TokenHelper.h
-
-  Firebase.begin(&config, &auth);
+  config.database_url = DATABASE_URL;                  /* Assign the callback function for the long running token generation task */
+  config.token_status_callback = tokenStatusCallback;  // see addons/TokenHelper.h
   Firebase.reconnectNetwork(true);
+  fbdo.setBSSLBufferSize(4096 /* Rx buffer size in bytes from 512 - 16384 /, 1024 / Tx buffer size in bytes from 512 - 16384 */, 1024);
+  Firebase.begin(&config, &auth);
   Firebase.setDoubleDigits(5);
 }
 
-void loop()
-{
+void loop() {
 
   num_of_iteration++;
   sensor1Data[0] = analogRead(SENSOR1_X_PIN);
   sensor1Data[1] = analogRead(SENSOR1_Y_PIN);
   sensor1Data[2] = analogRead(SENSOR1_Z_PIN);
   processSensorData();
+  HTTPClient http;
+  http.begin("https://app2-d200f.firebaseapp.com/api/v1/node_2/13");
+  http.addHeader("Content-Type", "application/json");
+  StaticJsonDocument<128> accelerationDocument;
 
-  if (num_of_iteration == NUM_OF_ITERATIONS)
-  {
+  if (num_of_iteration == NUM_OF_ITERATIONS) {
     num_of_iteration = 0;
-  // Prepare your document data
-    accelerationDocument["xAxis"] = sensor1Features[0];
-    accelerationDocument["yAxis"] = sensor1Features[1];
-    accelerationDocument["zAxis"] = sensor1Features[2];
-    char buffer[20];
-    serializeJson(accelerationDocument, buffer);
-    http.PATCH(buffer);
-    http.end();
-    // give an alert on machine learning 
-
 
     AVG_ALERT = (NUM_OF_ONES / NUM_OF_ITERATIONS);
-    if (AVG_ALERT > 0.3)
-    {
+    if (AVG_ALERT > 0.3) {
       FinalResult = 1;
-      if (FinalResult != old_FinalResult)
-      {
+      if (FinalResult != old_FinalResult) {
         Firebase.setInt(fbdo, F("/FinalResult1"), FinalResult);
+        delay(500);
         old_FinalResult = FinalResult;
       }
       AVG_ALERT = 0;
       NUM_OF_ONES = 0;
       Serial.println("ALERT ALERT ALERT");
-    }
-    else
-    {
+    } else {
       FinalResult = 0;
-      if (FinalResult != old_FinalResult)
-      {
+      if (FinalResult != old_FinalResult) {
         Firebase.setInt(fbdo, F("/FinalResult1"), FinalResult);
         old_FinalResult = FinalResult;
       }
@@ -199,5 +168,14 @@ void loop()
       NUM_OF_ONES = 0;
       Serial.println("Everythin is good ");
     }
+    // Prepare your document data
+    accelerationDocument["xAxis"] = sensor1Features[0];
+    accelerationDocument["yAxis"] = sensor1Features[1];
+    accelerationDocument["zAxis"] = sensor1Features[2];
+    char buffer[20];
+    serializeJson(accelerationDocument, buffer);
+    http.PATCH(buffer);
+    http.end();
+    delay(500);
   }
 }
