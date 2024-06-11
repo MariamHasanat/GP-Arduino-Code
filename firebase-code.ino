@@ -1,12 +1,27 @@
 #include <Wire.h>
 #include <math.h>
 #include <Arduino.h>
-#include <FirebaseESP32.h>
+#include <Firebase_ESP_Client.h>
+// #include <FirebaseArduino.h>
+// #include <FirebaseESP32.h>
 #include <addons/TokenHelper.h>
 #include <SD.h>
-#include <ArduinoJson.h>
-#include <HTTPClient.h>
 
+////////////////////////////////////////////////// Firestore code ??????????????
+
+#if defined(ESP32) || defined(ARDUINO_RASPBERRY_PI_PICO_W)
+#include <WiFi.h>
+#elif defined(ESP8266)
+#include <ESP8266WiFi.h>
+#elif __has_include(<WiFiNINA.h>)
+#include <WiFiNINA.h>
+#elif __has_include(<WiFi101.h>)
+#include <WiFi101.h>
+#elif __has_include(<WiFiS3.h>)
+#include <WiFiS3.h>
+#endif
+
+//////////////////////////////////////////////
 #define SENSOR1_X_PIN 33
 #define SENSOR1_Y_PIN 34
 #define SENSOR1_Z_PIN 35
@@ -19,8 +34,6 @@
 #define FIREBASE_PROJECT_ID "app2-d200f"                                //<databaseName>.firebaseio.com or <databaseName>.<region>.firebasedatabase.app
 #define USER_EMAIL "earhtquakegraduationproject@gmail.com"
 #define USER_PASSWORD "earthquake123@456"
-
-const int capacity = JSON_OBJECT_SIZE(3);
 
 struct DataPoint {
   double x;
@@ -36,7 +49,8 @@ struct Parameters {       //,,,
 };
 
 unsigned long sendDataPrevMillis = 0;
-unsigned long count = 0;
+unsigned long dataMillis = 0;
+int count = 0;
 int FinalResult = 0;
 int old_FinalResult = 0;
 int NUM_OF_ONES = 0;
@@ -44,16 +58,43 @@ int num_of_iteration = 0;
 int predictedLabel;
 Parameters theta;
 DataPoint point;
-FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
+FirebaseData fbdo;
+FirebaseData fbdo_othernode;
+// FirebaseJson json;
 // FirebaseFirestore firestore;
 float AVG_ALERT = 0;
 float sensor1Data[3];                 // [X, Y, Z]
 float sensor1Buffer[3][NUM_SAMPLES];  // [X, Y, Z]
 float sensor1Features[3] = { 0 };     // Features for sensor 1 [stdX,  stdY, stdZ]
-DynamicJsonDocument doc(capacity);
-JsonObject docData = doc.to<JsonObject>();
+
+//////////////////////////////BUZZER ///////////////////////////////////////////
+int other_node = 0;
+const int buzzerPin = 32;  // You can change this to the pin you have connected the buzzer to
+
+// Define the frequencies for alert and warning sounds
+const int alertFrequency = 1000;   // Frequency in Hz for alert sound
+const int warningFrequency = 500;  // Frequency in Hz for warning sound
+
+// Define the duration for the sounds
+const int alertDuration = 1000;   // Duration in milliseconds for alert sound
+const int warningDuration = 500;  // Duration in milliseconds for warning sound
+
+void playSound(int frequency, int duration) {
+  int halfPeriod = 1000000 / (frequency * 2);    // Calculate the half period in microseconds
+  int cycles = frequency * (duration / 1000.0);  // Calculate the number of cycles
+
+  for (int i = 0; i < cycles; i++) {
+    digitalWrite(buzzerPin, HIGH);  // Turn the buzzer on
+    delayMicroseconds(halfPeriod);  // Wait for the half period
+    digitalWrite(buzzerPin, LOW);   // Turn the buzzer off
+    delayMicroseconds(halfPeriod);  // Wait for the other half period
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
 // Sigmoid function
 double sigmoid(double z) {
   return 1.0 / (1.0 + exp(-z));
@@ -109,8 +150,10 @@ void processSensorData() {
 }
 
 void setup() {
+  pinMode(buzzerPin, OUTPUT);
   Serial.begin(9600);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
   Serial.print("Connecting to Wi-Fi");
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
@@ -127,12 +170,14 @@ void setup() {
   config.database_url = DATABASE_URL;                  /* Assign the callback function for the long running token generation task */
   config.token_status_callback = tokenStatusCallback;  // see addons/TokenHelper.h
   Firebase.reconnectNetwork(true);
-  fbdo.setBSSLBufferSize(4096 /* Rx buffer size in bytes from 512 - 16384 /, 1024 / Tx buffer size in bytes from 512 - 16384 */, 1024);
+  fbdo.setBSSLBufferSize(4096, 1024);
+  fbdo.setResponseSize(2048);
   Firebase.begin(&config, &auth);
-  Firebase.setDoubleDigits(5);
 }
 
 void loop() {
+
+  digitalWrite(buzzerPin, LOW);
 
   num_of_iteration++;
   sensor1Data[0] = analogRead(SENSOR1_X_PIN);
@@ -140,14 +185,16 @@ void loop() {
   sensor1Data[2] = analogRead(SENSOR1_Z_PIN);
   processSensorData();
 
-
   if (num_of_iteration == NUM_OF_ITERATIONS) {
     num_of_iteration = 0;
+
     AVG_ALERT = (NUM_OF_ONES / NUM_OF_ITERATIONS);
-    if (AVG_ALERT > 0.3) {
+    if (AVG_ALERT > 0.5) {
       FinalResult = 1;
+      playSound(alertFrequency, alertDuration);
       if (FinalResult != old_FinalResult) {
-        Firebase.setInt(fbdo, F("/FinalResult1"), FinalResult);
+        Firebase.RTDB.setInt(&fbdo, F("/FinalResult1/int"), FinalResult);
+
         delay(500);
         old_FinalResult = FinalResult;
       }
@@ -157,29 +204,41 @@ void loop() {
     } else {
       FinalResult = 0;
       if (FinalResult != old_FinalResult) {
-        Firebase.setInt(fbdo, F("/FinalResult1"), FinalResult);
+        Firebase.RTDB.setInt(&fbdo, F("/FinalResult1/int"), FinalResult);
         old_FinalResult = FinalResult;
       }
       AVG_ALERT = 0;
       NUM_OF_ONES = 0;
       Serial.println("Everythin is good ");
+
+      // Firebase.RTDB.getInt(fbdo_othernode, F("/FinalResult/int"));
+      // other_node = Firebase.RTDB.getInt(fbdo_othernode, F("/FinalResult/int"));
+
+      // Serial.printf(Firebase.RTDB.getInt(fbdo_othernode, F("/FinalResult/int")));
+      if (Firebase.RTDB.getInt(&fbdo_othernode, F("/FinalResult/int")))
+      other_node = fbdo_othernode.intData();
+        if ((other_node == 1)) {
+          playSound(warningFrequency, warningDuration);
+        }
     }
-    if (WiFi.status() == WL_CONNECTED) {
-      HTTPClient http;
-      http.begin("https://firestore.googleapis.com/v1/projects/app2-d200f/databases/(default)/documents/node_2/2?key=AIzaSyBgpUQqMd8SQj7ZsB33GVh8WJcD0jlD0pk");
-      http.addHeader("Content-Type", "application/json");
 
-      StaticJsonDocument<20> accelerationDocument;
+    //// write document code ////
+    if (Firebase.ready() && (millis() - dataMillis > 10000 || dataMillis == 0)) {
+      dataMillis = millis();
+      FirebaseJson content;
+      String documentPath = "node_1/sensor_" + String(count);
+      // double
+      content.set("fields/xAxis/doubleValue", sensor1Features[0]);
+      content.set("fields/yAxis/doubleValue", sensor1Features[1]);
+      content.set("fields/zAxis/doubleValue", sensor1Features[2]);
+      count++;
 
-      // Prepare your document data
-      accelerationDocument["xAxis"] = sensor1Features[0];
-      accelerationDocument["yAxis"] = sensor1Features[1];
-      accelerationDocument["zAxis"] = sensor1Features[2];
-      char buffer[20];
-      serializeJson(accelerationDocument, buffer);
-      http.PUT(buffer);
-      http.end();
-      delay(500);
+      Serial.print("Create a document... ");
+
+      if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID, "(default)", documentPath.c_str(), content.raw()))
+        Serial.printf("ok\n%s\n\n", fbdo.payload().c_str());
+      else
+        Serial.println(fbdo.errorReason());
     }
   }
 }
